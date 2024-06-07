@@ -11,39 +11,54 @@ REPO_DIR=$1
 # Navigate to the repository directory
 cd "$REPO_DIR" || { echo "Repository not found!"; exit 1; }
 
-# Get today's date
-today=$(date +%Y-%m-%d)
-
-# Function to create a commit on a given date
-commit_on_date() {
+# Function to create a commit with a random message
+random_commit() {
     local commit_date=$1
-    local commit_message="Commit on $commit_date"
+    local commit_message=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 12 | head -n 1)
 
-    # Create a trivial change
-    echo "$commit_message" > fake_commit.txt
+    # Create or modify a trivial file
+    echo "Fake commit message: $commit_message" > fake_commit.txt
     git add fake_commit.txt
 
     # Set the commit date
     GIT_AUTHOR_DATE="$commit_date 12:00:00" GIT_COMMITTER_DATE="$commit_date 12:00:00" git commit -m "$commit_message"
 }
 
-# Generate dates for 2023 and 2024
-for year in 2023 2024; do
-    for month in {01..12}; do
-        for day in {01..31}; do
-            # Format the date
-            date="$year-$month-$day"
-            
-            # Check if the date is valid
-            if date -d "$date" >/dev/null 2>&1; then
-                # Commit on the valid date if it is not in the future
-                if [[ "$date" < "$today" ]]; then
-                    commit_on_date "$date"
-                fi
-            fi
-        done
+# Function to generate a list of random dates
+generate_random_dates() {
+    local year=$1
+    local num_dates=$2
+    shuf -i "$(date -d "$year-01-01" +%s)"-"$(date -d "$year-12-31" +%s)" -n $num_dates | while read -r timestamp; do
+        date -d "@$timestamp" +"%Y-%m-%d"
+    done
+}
+
+# Set the year range
+START_YEAR=2020
+END_YEAR=2020
+
+# Total number of commits
+TOTAL_COMMITS=1000
+
+# Generate commits for each year
+for year in $(seq $START_YEAR $END_YEAR); do
+    # Determine the number of commits for this year
+    commits_per_year=$((TOTAL_COMMITS / (END_YEAR - START_YEAR + 1)))
+
+    # Generate random dates for commits
+    random_dates=$(generate_random_dates "$year" "$commits_per_year")
+
+    for date in $random_dates; do
+        # Ensure the date is not in the future
+        if [[ "$date" < "$(date +%Y-%m-%d)" ]]; then
+            # Generate a random number of commits for each date
+            num_commits=$(shuf -i 2-10 -n 1)
+            for ((i=0; i<num_commits; i++)); do
+                random_commit "$date"
+            done
+        fi
     done
 done
 
-# Push the changes
-git push origin main
+# Push the changes to the master branch
+git push origin master
